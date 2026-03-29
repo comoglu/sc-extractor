@@ -120,7 +120,7 @@ def generate_nordic(results: List[Dict]) -> str:
         mag   = ref.get("event_magnitude_value")
         mag_t = ref.get("event_magnitude_type", "L")
         rms   = ref.get("origin_quality_standard_error")
-        nstat = ref.get("origin_quality_used_station_count") or 0
+        nstat = int(ref.get("origin_quality_used_station_count") or 0)
         agency = (ref.get("event_agency") or "   ")[:3]
 
         yr = date[:4] if date else "    "
