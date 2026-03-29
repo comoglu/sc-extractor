@@ -109,8 +109,8 @@ class _CategoryWidget(QWidget):
             b.setFixedSize(48, 22)
             b.setStyleSheet(
                 f"QPushButton {{ background: {color}; color: white;"
-                " border-radius: 4px; font-size: 11px; font-weight:600;"
-                " padding: 0; }}"
+                " border-radius: 4px; font-size: 11px; font-weight: 600;"
+                " padding: 0px; }"
                 f"QPushButton:hover {{ border: 1px solid white; }}"
             )
             b.clicked.connect(action)
