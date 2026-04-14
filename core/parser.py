@@ -97,19 +97,45 @@ def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # Location quality score (0–100)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _compute_secondary_azimuthal_gap(origin_el: ET.Element, ns: "_NS") -> Optional[float]:
+def _compute_secondary_azimuthal_gap(
+    origin_el: ET.Element,
+    ns: "_NS",
+    id_index: dict | None = None,
+) -> Optional[float]:
     """
     Compute the secondary azimuthal gap from used arrival azimuths.
     Same algorithm as scautoloc/stdloc: max(azi[i+2] - azi[i]) over sorted azimuths.
-    Returns None if fewer than 2 used arrivals with azimuth data.
+
+    One azimuth per station (NET.STA) is used so that events with both P
+    and S used from the same station are not double-counted.
+    Returns None if fewer than 2 unique used stations with azimuth data.
     """
+    seen_sta: set[str] = set()
     azimuths: list[float] = []
     for arr_el in ns.iter(origin_el, "arrival"):
         if _bool(ns.text(arr_el, "timeUsed")) is not True:
             continue
         az = _float(ns.text(arr_el, "azimuth"))
-        if az is not None:
-            azimuths.append(az)
+        if az is None:
+            continue
+        # Derive a per-station key for deduplication
+        pick_id = ns.text(arr_el, "pickID") or ""
+        sta_key = ""
+        if id_index and pick_id:
+            pick_el = id_index.get(pick_id)
+            if pick_el is not None:
+                wf = pick_el.find(ns.q("waveformID"))
+                if wf is not None:
+                    sta_key = (
+                        f"{wf.get('networkCode','')}.{wf.get('stationCode','')}"
+                    )
+        if not sta_key:
+            nslc = _parse_pick_id_nslc(pick_id)
+            sta_key = f"{nslc[0]}.{nslc[1]}" if nslc else f"az:{az:.4f}"
+        if sta_key in seen_sta:
+            continue
+        seen_sta.add(sta_key)
+        azimuths.append(az)
 
     if len(azimuths) < 2:
         return None
@@ -420,7 +446,7 @@ class SeisCompParser:
             # Fallback: compute secondary azimuthal gap from arrival azimuths
             # when not stored in the XML (e.g. scautoloc origins)
             if info.get("origin_quality_secondary_azimuthal_gap") is None:
-                sec_gap = _compute_secondary_azimuthal_gap(origin_el, ns)
+                sec_gap = _compute_secondary_azimuthal_gap(origin_el, ns, id_index)
                 if sec_gap is not None:
                     info["origin_quality_secondary_azimuthal_gap"] = sec_gap
 
