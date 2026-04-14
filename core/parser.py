@@ -97,6 +97,37 @@ def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # Location quality score (0–100)
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _compute_secondary_azimuthal_gap(origin_el: ET.Element, ns: "_NS") -> Optional[float]:
+    """
+    Compute the secondary azimuthal gap from used arrival azimuths.
+    Same algorithm as scautoloc/stdloc: max(azi[i+2] - azi[i]) over sorted azimuths.
+    Returns None if fewer than 2 used arrivals with azimuth data.
+    """
+    azimuths: list[float] = []
+    for arr_el in ns.iter(origin_el, "arrival"):
+        if _bool(ns.text(arr_el, "timeUsed")) is not True:
+            continue
+        az = _float(ns.text(arr_el, "azimuth"))
+        if az is not None:
+            azimuths.append(az)
+
+    if len(azimuths) < 2:
+        return None
+
+    azimuths.sort()
+    n = len(azimuths)
+    azimuths.append(azimuths[0] + 360.0)
+    azimuths.append(azimuths[1] + 360.0)
+
+    secondary = 0.0
+    for i in range(n):
+        gap = azimuths[i + 2] - azimuths[i]
+        if gap > secondary:
+            secondary = gap
+
+    return round(secondary, 2)
+
+
 def _compute_quality_score(info: dict) -> Optional[float]:
     """
     Composite quality score 0–100:
@@ -385,6 +416,13 @@ class SeisCompParser:
                     raw = ns.text(q_el, xml_key)
                     if raw is not None:
                         info[dict_key] = _float(raw) if _float(raw) is not None else raw
+
+            # Fallback: compute secondary azimuthal gap from arrival azimuths
+            # when not stored in the XML (e.g. scautoloc origins)
+            if info.get("origin_quality_secondary_azimuthal_gap") is None:
+                sec_gap = _compute_secondary_azimuthal_gap(origin_el, ns)
+                if sec_gap is not None:
+                    info["origin_quality_secondary_azimuthal_gap"] = sec_gap
 
             # Location quality score
             info["location_quality_score"] = _compute_quality_score(info)
