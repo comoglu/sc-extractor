@@ -1,4 +1,4 @@
-# scatalog — SeisComP Station Data Extractor
+# sc-extractor — SeisComP Station Data Extractor
 
 A Python CLI + PyQt5 GUI tool for extracting arrival/phase data from SeisComP XML files across schema versions 0.5–0.14.
 
