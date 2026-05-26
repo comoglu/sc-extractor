@@ -58,13 +58,22 @@ def _bool(text: Optional[str]) -> Optional[bool]:
 
 
 def _parse_iso(time_str: str) -> Optional[float]:
-    """ISO-8601 string → Unix timestamp (float), or None on failure."""
+    """ISO-8601 string → Unix timestamp (float), or None on failure.
+
+    Normalises fractional seconds to exactly 6 digits so that
+    datetime.fromisoformat works on Python 3.7–3.10 (which only accepts
+    formats produced by datetime.isoformat(), i.e. 0 or 6 fractional digits).
+    SeisComP XML sometimes emits 1 or 5 digit fractions (e.g. '.7', '.71221'),
+    which would silently drop those picks on older Python.
+    """
     if not time_str:
         return None
     try:
         s = time_str.strip()
         if s.endswith("Z"):
             s = s[:-1] + "+00:00"
+        # Pad/truncate fractional seconds to exactly 6 digits
+        s = _re.sub(r'\.(\d+)', lambda m: '.' + (m.group(1) + '000000')[:6], s)
         dt = datetime.fromisoformat(s)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
