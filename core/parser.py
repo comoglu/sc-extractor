@@ -762,30 +762,42 @@ class SeisCompParser:
         net = rec.get("station_network", "")
         sta = rec.get("station_code", "")
 
+        # Prefer the stationMagnitude that belongs to the preferred network
+        # magnitude (i.e. its publicID is in sm_contributions).  When a station
+        # has entries for multiple magnitude types (e.g. MLv, ML, MLa) the first
+        # document-order match would otherwise be the wrong type.
+        first_match: Optional[ET.Element] = None
+        preferred_match: Optional[ET.Element] = None
         for sm_el in ns.iter(origin_el, "stationMagnitude"):
             wf_el = ns.find(sm_el, "waveformID")
-            if (wf_el is not None
-                    and wf_el.get("networkCode") == net
-                    and wf_el.get("stationCode") == sta):
-                rec["station_magnitude_type"]        = ns.text(sm_el, "type")
-                rec["station_magnitude_value"]       = _float(ns.text(sm_el, "magnitude/value"))
-                rec["station_magnitude_uncertainty"] = _float(ns.text(sm_el, "magnitude/uncertainty"))
-                rec["station_magnitude_method"]      = ns.text(sm_el, "methodID")
-
-                ci = ns.find(sm_el, "creationInfo")
-                if ci is not None:
-                    rec["station_magnitude_author"]        = ns.text(ci, "author")
-                    rec["station_magnitude_agency"]        = ns.text(ci, "agencyID")
-                    rec["station_magnitude_creation_time"] = ns.text(ci, "creationTime")
-
-                # Residual and used flag from network mag contributions
-                if sm_contributions:
-                    sm_pub_id = sm_el.get("publicID", "")
-                    if sm_pub_id in sm_contributions:
-                        res, used = sm_contributions[sm_pub_id]
-                        rec["station_magnitude_residual"] = res
-                        rec["station_magnitude_used"]     = used
+            if wf_el is None:
+                continue
+            if wf_el.get("networkCode") != net or wf_el.get("stationCode") != sta:
+                continue
+            if first_match is None:
+                first_match = sm_el
+            if sm_contributions and sm_el.get("publicID", "") in sm_contributions:
+                preferred_match = sm_el
                 break
+
+        sm_el = preferred_match or first_match
+        if sm_el is not None:
+            rec["station_magnitude_type"]        = ns.text(sm_el, "type")
+            rec["station_magnitude_value"]       = _float(ns.text(sm_el, "magnitude/value"))
+            rec["station_magnitude_uncertainty"] = _float(ns.text(sm_el, "magnitude/uncertainty"))
+            rec["station_magnitude_method"]      = ns.text(sm_el, "methodID")
+
+            ci = ns.find(sm_el, "creationInfo")
+            if ci is not None:
+                rec["station_magnitude_author"]        = ns.text(ci, "author")
+                rec["station_magnitude_agency"]        = ns.text(ci, "agencyID")
+                rec["station_magnitude_creation_time"] = ns.text(ci, "creationTime")
+
+            sm_pub_id = sm_el.get("publicID", "")
+            if sm_contributions and sm_pub_id in sm_contributions:
+                res, used = sm_contributions[sm_pub_id]
+                rec["station_magnitude_residual"] = res
+                rec["station_magnitude_used"]     = used
 
 
 # ──────────────────────────────────────────────────────────────────────────────
